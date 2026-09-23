@@ -1,0 +1,16 @@
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+
+# Large documents and images
+*.pdf
+*.png
+*.jpg
+*.jpeg
+screenshot/
+
+# Windows
+Thumbs.db
+desktop.ini
