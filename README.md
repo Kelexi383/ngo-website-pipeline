@@ -1,3 +1,5 @@
+![Deploy Status](https://github.com/Kelexi383/ngo-website-pipeline/actions/workflows/deploy.yml/badge.svg)
+
 # NGO Website — Cloud Deployment Project
 
 Static website deployed to Azure Blob Storage with:
@@ -8,3 +10,4 @@ Static website deployed to Azure Blob Storage with:
 - `src/` — website files
 - `terraform/` — infrastructure code
 - `.github/workflows/` — CI/CD pipeline
+
