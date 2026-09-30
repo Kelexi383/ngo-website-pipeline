@@ -1,0 +1,59 @@
+name: Deploy with AzCopy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-azcopy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Download and install AzCopy
+        run: |
+          wget -q https://aka.ms/downloadazcopy-v10-linux -O azcopy.tar.gz
+          tar -xf azcopy.tar.gz
+          sudo mv azcopy_linux_amd64_*/azcopy /usr/local/bin/
+          sudo chmod +x /usr/local/bin/azcopy
+          azcopy --version
+
+      - name: Get Storage Account Key
+        id: get-key
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            KEY=$(az storage account keys list \
+              --account-name staticweb8514 \
+              --resource-group CloudProject-RG-TF \
+              --query "[0].value" -o tsv)
+            echo "::add-mask::$KEY"
+            echo "storage-key=$KEY" >> $GITHUB_OUTPUT
+
+      - name: Sync website files with AzCopy
+        env:
+          AZCOPY_AUTO_LOGIN_TYPE: SPN
+          AZCOPY_SPA_APPLICATION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          AZCOPY_SPA_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          AZCOPY_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+        run: |
+          # For static websites, $web container is the destination
+          azcopy sync "./src" "https://staticweb8514.blob.core.windows.net/\$web" \
+            --recursive=true \
+            --delete-destination=true \
+            --log-level=INFO
+
+      - name: Show uploaded files
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            echo "=== Files in \$web container ==="
+            az storage blob list \
+              --account-name staticweb8514 \
+              --container-name '$web' \
+              --output table
