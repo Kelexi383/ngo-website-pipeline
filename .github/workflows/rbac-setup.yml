@@ -1,0 +1,74 @@
+name: Setup RBAC User and Role
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-user-and-role:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create Entra ID user
+        id: create-user
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            # Check if user exists first
+            USER_UPN="${{ vars.NEW_USER_NAME }}@${{ vars.TENANT_DOMAIN }}"
+            EXISTING=$(az ad user list --filter "userPrincipalName eq '$USER_UPN'" --query "[0].id" -o tsv)
+
+            if [ -z "$EXISTING" ]; then
+              echo "Creating new user $USER_UPN"
+              PASSWORD="Welcome$(date +%Y)!xyz"
+              USER_ID=$(az ad user create \
+                --display-name "${{ vars.NEW_USER_NAME }} User" \
+                --user-principal-name "$USER_UPN" \
+                --password "$PASSWORD" \
+                --force-change-password-next-sign-in true \
+                --query "id" -o tsv)
+              echo "user-id=$USER_ID" >> $GITHUB_OUTPUT
+              echo "Created user with ID: $USER_ID"
+            else
+              echo "User already exists with ID: $EXISTING"
+              echo "user-id=$EXISTING" >> $GITHUB_OUTPUT
+            fi
+
+      - name: Assign Reader role on Resource Group
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            SUBSCRIPTION_ID="23338491-d465-48c6-acce-7a007161fa12"
+            RG="CloudProject-RG-TF"
+            USER_ID="${{ steps.create-user.outputs.user-id }}"
+
+            # Check if role already assigned
+            EXISTING=$(az role assignment list \
+              --assignee "$USER_ID" \
+              --role "Reader" \
+              --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RG" \
+              --query "[0].id" -o tsv)
+
+            if [ -z "$EXISTING" ]; then
+              echo "Assigning Reader role..."
+              az role assignment create \
+                --assignee "$USER_ID" \
+                --role "Reader" \
+                --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RG"
+              echo "Role assigned."
+            else
+              echo "Reader role already assigned."
+            fi
+
+      - name: Show current role assignments
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            echo "=== Reader role assignments on CloudProject-RG-TF ==="
+            az role assignment list \
+              --role "Reader" \
+              --scope "/subscriptions/23338491-d465-48c6-acce-7a007161fa12/resourceGroups/CloudProject-RG-TF" \
+              --output table
