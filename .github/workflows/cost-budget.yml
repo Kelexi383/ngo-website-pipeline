@@ -1,0 +1,42 @@
+name: Create Azure Budget
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-budget:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create monthly budget with alerts
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            SUBSCRIPTION_ID="23338491-d465-48c6-acce-7a007161fa12"
+            RG="CloudProject-RG-TF"
+
+            # End date must be in the future
+            START_DATE=$(date -u +"%Y-%m-01T00:00:00Z")
+            END_DATE=$(date -u -d "+1 year" +"%Y-%m-01T00:00:00Z")
+
+            echo "Creating budget 'ngo-website-budget' with \$5 limit..."
+            az consumption budget create \
+              --budget-name "ngo-website-budget" \
+              --amount 5 \
+              --category Cost \
+              --time-grain Monthly \
+              --time-period start="$START_DATE" end="$END_DATE" \
+              --resource-group "$RG"
+
+            echo "Budget created."
+
+      - name: List all budgets
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            echo "=== Budgets for CloudProject-RG-TF ==="
+            az consumption budget list --resource-group CloudProject-RG-TF --output table
